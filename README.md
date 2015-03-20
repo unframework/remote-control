@@ -37,7 +37,7 @@ var app = express();
 
 app.get('/', function(request, response) {
     response.setHeader('Content-Type', 'text/html');
-    fs.readFile(__dirname + '/index.html').pipe(response);
+    fs.createReadStream(__dirname + '/index.html').pipe(response);
 });
 
 var server = app.listen(process.env.PORT || 3000);
