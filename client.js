@@ -59,7 +59,6 @@ module.exports = function (methodList) {
             }
 
             bridgeSocket.onopen = function () {
-                console.log('hey!');
                 resolve(remoteCall);
             };
         });
