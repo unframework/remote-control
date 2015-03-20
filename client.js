@@ -1,6 +1,7 @@
 
 module.exports = function (methodList) {
     var Promise = require('bluebird');
+    var callCount = 0;
 
     // this converts https into wss
     // @todo improve?
@@ -30,8 +31,10 @@ module.exports = function (methodList) {
         var args = Array.prototype.slice.call(arguments, 1);
 
         return new Promise(function(resolve, reject) {
-            var callId = Math.random() + '',
+            var callId = callCount,
                 timeoutId = null;
+
+            callCount += 1;
 
             function cleanup() {
                 window.clearTimeout(timeoutId);
