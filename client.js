@@ -1,16 +1,26 @@
 
 module.exports = function (methodList) {
     var Promise = require('bluebird');
+
+    function createSocket(onMessage) {
+        return new Promise(function(resolve, reject) {
+            // this converts https into wss
+            // @todo improve?
+            // @todo auto-reconnect, auth, etc
+            var bridgeSocket = new WebSocket((window.location + '').replace(/^http/, 'ws').replace(/#.*$/, ''))
+
+            bridgeSocket.onopen = function () {
+                resolve(bridgeSocket);
+            };
+
+            bridgeSocket.onmessage = onMessage;
+        });
+    }
+
     var callCount = 0;
-
-    // this converts https into wss
-    // @todo improve?
-    // @todo auto-reconnect, auth, etc
-    var bridgeSocket = new WebSocket((window.location + '').replace(/^http/, 'ws').replace(/#.*$/, ''))
-
     var callMap = {};
 
-    bridgeSocket.onmessage = function (e) {
+    var socketPromise = createSocket(function (e) {
         var data = JSON.parse(e.data);
         var call = callMap[data[0]];
 
@@ -23,13 +33,9 @@ module.exports = function (methodList) {
         } else {
             call(data[2]);
         }
-    };
+    });
 
-    callMap = {};
-
-    function remoteCall(methodName) {
-        var args = Array.prototype.slice.call(arguments, 1);
-
+    function remoteCall(bridgeSocket, methodName, args) {
         return new Promise(function(resolve, reject) {
             var callId = callCount,
                 timeoutId = null;
@@ -62,8 +68,14 @@ module.exports = function (methodList) {
 
     var methodMap = {};
 
-    methodList.forEach(function (v) {
-        methodMap[v] = remoteCall.bind(null, v);
+    methodList.forEach(function (methodName) {
+        methodMap[methodName] = function () {
+            var args = Array.prototype.slice.call(arguments, 0);
+
+            return socketPromise.then(function (socket) {
+                return remoteCall(socket, methodName, args);
+            });
+        };
     });
 
     return methodMap;
