@@ -8,7 +8,7 @@ var clientConstructorFn = require('./client.js');
 
 // @todo instantiate methods per connection
 module.exports = function RemoteControlServer(methods, httpServer) {
-    var clientSideSourceCode = 'window.server = (' + clientConstructorFn.toString() + ')(' + JSON.stringify(Object.keys(methods)) + ');';
+    var clientSideSourceCode = 'window.RemoteControl = (' + clientConstructorFn.toString() + ')(' + JSON.stringify(Object.keys(methods)) + ');';
     var clientSideCompiledCode = null;
 
     var self = this;

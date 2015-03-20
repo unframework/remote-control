@@ -19,6 +19,7 @@ Client-side code:
 ```html
 <script src="remote.js"></script>
 <script>
+    var server = new RemoteControl();
     server.helloWorld("foo value", "bar value").then(function (baz) {
         console.log("responded with", baz);
     });

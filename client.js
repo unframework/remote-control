@@ -2,81 +2,81 @@
 module.exports = function (methodList) {
     var Promise = require('bluebird');
 
-    function createSocket(onMessage) {
+    function createSocket() {
         return new Promise(function(resolve, reject) {
             // this converts https into wss
             // @todo improve?
             // @todo auto-reconnect, auth, etc
             var bridgeSocket = new WebSocket((window.location + '').replace(/^http/, 'ws').replace(/#.*$/, ''))
 
-            bridgeSocket.onopen = function () {
-                resolve(bridgeSocket);
-            };
+            var callCount = 0;
+            var callMap = {};
 
-            bridgeSocket.onmessage = onMessage;
-        });
-    }
+            bridgeSocket.onmessage = function (e) {
+                var data = JSON.parse(e.data);
+                var call = callMap[data[0]];
 
-    var callCount = 0;
-    var callMap = {};
+                if (!call) {
+                    return;
+                }
 
-    var socketPromise = createSocket(function (e) {
-        var data = JSON.parse(e.data);
-        var call = callMap[data[0]];
-
-        if (!call) {
-            return;
-        }
-
-        if (data.length === 2) {
-            call(null, data[1]);
-        } else {
-            call(data[2]);
-        }
-    });
-
-    function remoteCall(bridgeSocket, methodName, args) {
-        return new Promise(function(resolve, reject) {
-            var callId = callCount,
-                timeoutId = null;
-
-            callCount += 1;
-
-            function cleanup() {
-                window.clearTimeout(timeoutId);
-                delete callMap[callId];
-            };
-
-            timeoutId = window.setTimeout(function() {
-                cleanup();
-                reject();
-            }, 5000);
-
-            callMap[callId] = function (error) {
-                cleanup();
-
-                if (arguments.length === 2) {
-                    resolve(arguments[1]);
+                if (data.length === 2) {
+                    call(null, data[1]);
                 } else {
-                    reject(error);
+                    call(data[2]);
                 }
             };
 
-            bridgeSocket.send(JSON.stringify([callId, methodName].concat(args)));
+            function remoteCall(methodName, args) {
+                return new Promise(function(resolve, reject) {
+                    var callId = callCount,
+                        timeoutId = null;
+
+                    callCount += 1;
+
+                    function cleanup() {
+                        window.clearTimeout(timeoutId);
+                        delete callMap[callId];
+                    };
+
+                    timeoutId = window.setTimeout(function() {
+                        cleanup();
+                        reject();
+                    }, 5000);
+
+                    callMap[callId] = function (error) {
+                        cleanup();
+
+                        if (arguments.length === 2) {
+                            resolve(arguments[1]);
+                        } else {
+                            reject(error);
+                        }
+                    };
+
+                    bridgeSocket.send(JSON.stringify([callId, methodName].concat(args)));
+                });
+            }
+
+            bridgeSocket.onopen = function () {
+                console.log('hey!');
+                resolve(remoteCall);
+            };
         });
     }
 
-    var methodMap = {};
+    return function RemoteControl() {
+        var self = this;
+        var socketPromise = createSocket();
 
-    methodList.forEach(function (methodName) {
-        methodMap[methodName] = function () {
-            var args = Array.prototype.slice.call(arguments, 0);
+        methodList.forEach(function (methodName) {
+            self[methodName] = function () {
+                var args = Array.prototype.slice.call(arguments, 0);
 
-            return socketPromise.then(function (socket) {
-                return remoteCall(socket, methodName, args);
-            });
-        };
-    });
-
-    return methodMap;
+                return socketPromise.then(function (remoteCall) {
+                    return remoteCall(methodName, args);
+                });
+            };
+        });
+    };
 };
