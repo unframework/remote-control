@@ -7,13 +7,13 @@ var WebSocketServer = require('ws').Server;
 var clientConstructorFn = require('./client.js');
 
 // @todo instantiate methods per connection
-module.exports = function RpcServer(methods, httpServer) {
+module.exports = function RemoteControlServer(methods, httpServer) {
     var clientSideSourceCode = 'window.server = (' + clientConstructorFn.toString() + ')(' + JSON.stringify(Object.keys(methods)) + ');';
+    var clientSideCompiledCode = null;
 
     var self = this;
     browserifyFn(clientSideSourceCode).bundle().pipe(concat(function(js) {
-        // @todo use Express middleware instead
-        self.clientSideCode = js.toString();
+        clientSideCompiledCode = js.toString();
     }));
 
     var wsServer = new WebSocketServer({ server: httpServer });
@@ -47,4 +47,13 @@ module.exports = function RpcServer(methods, httpServer) {
             });
         });
     });
+
+    this.clientMiddleware = function (req, res) {
+        if (!clientSideCompiledCode) {
+            throw new Error('client not ready');
+        }
+
+        res.setHeader('Content-Type', 'application/javascript');
+        res.end(clientSideCompiledCode);
+    }
 };
