@@ -1,0 +1,24 @@
+{
+  "name": "remote-control",
+  "version": "0.0.0",
+  "description": "Call functions on node server from browser web UI",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/unframework/remote-control.git"
+  },
+  "keywords": [
+    "express",
+    "rpc",
+    "websocket",
+    "webapp"
+  ],
+  "author": "Nick Matantsev <nick.matantsev@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/unframework/remote-control/issues"
+  }
+}
