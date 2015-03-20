@@ -20,5 +20,11 @@
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/unframework/remote-control/issues"
+  },
+  "dependencies": {
+    "concat-stream": "~1.4.7",
+    "ws": "^0.7.1",
+    "bluebird": "~2.9.14",
+    "browserify-string": "~1.1.0"
   }
 }
