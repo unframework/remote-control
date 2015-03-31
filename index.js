@@ -6,9 +6,31 @@ var WebSocketServer = require('ws').Server;
 
 var clientConstructorFn = require('./client.js');
 
+function createConstructorFactory(constructor) {
+    return function (args) {
+        var ctr = constructor.bind.apply(constructor, args);
+        return new ctr();
+    };
+}
+
+function createNamespaceFactory(namespace) {
+    return function (args) {
+        if (args.length > 0) {
+            throw new Error('no arguments expected');
+        }
+
+        return namespace;
+    };
+}
+
 // @todo instantiate methods per connection
-module.exports = function RemoteControlServer(methods, httpServer) {
-    var clientSideSourceCode = 'window.RemoteControl = (' + clientConstructorFn.toString() + ')(' + JSON.stringify(Object.keys(methods)) + ');';
+module.exports = function RemoteControlServer(constructorOrNamespace, httpServer) {
+    var methodList = Object.keys(typeof constructorOrNamespace === 'function' ? constructorOrNamespace.prototype : constructorOrNamespace);
+    var createObject = typeof constructorOrNamespace === 'function'
+        ? createConstructorFactory(constructorOrNamespace)
+        : createNamespaceFactory(constructorOrNamespace);
+
+    var clientSideSourceCode = 'window.RemoteControl = (' + clientConstructorFn.toString() + ')(' + JSON.stringify(methodList) + ');';
     var clientSideCompiledCode = null;
 
     var self = this;
@@ -19,6 +41,8 @@ module.exports = function RemoteControlServer(methods, httpServer) {
     var wsServer = new WebSocketServer({ server: httpServer });
 
     wsServer.on('connection', function (socket) {
+        var remoteObject = createObject([]);
+
         socket.on('message', function (dataJson) {
             var data = null;
 
@@ -29,12 +53,12 @@ module.exports = function RemoteControlServer(methods, httpServer) {
             }
 
             var callId = data[0];
-            var method = methods[data[1]];
+            var method = remoteObject[data[1]];
             var args = data.slice(2);
             var result = undefined;
 
             try {
-                result = Promise.resolve(method.apply(null, args));
+                result = Promise.resolve(method.apply(remoteObject, args));
             } catch (e) {
                 result = Promise.reject();
             }
