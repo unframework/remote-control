@@ -25,6 +25,7 @@ function createNamespaceFactory(namespace) {
 
 // @todo instantiate methods per connection
 module.exports = function RemoteControlServer(constructorOrNamespace, httpServer) {
+    // @todo filter out "private" methods - anything that starts with _?
     var methodList = Object.keys(typeof constructorOrNamespace === 'function' ? constructorOrNamespace.prototype : constructorOrNamespace);
     var createObject = typeof constructorOrNamespace === 'function'
         ? createConstructorFactory(constructorOrNamespace)
