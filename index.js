@@ -32,12 +32,12 @@ module.exports = function RemoteControlServer(constructorOrNamespace, httpServer
         : createNamespaceFactory(constructorOrNamespace);
 
     var clientSideSourceCode = 'window.RemoteControl = (' + clientConstructorFn.toString() + ')(' + JSON.stringify(methodList) + ');';
-    var clientSideCompiledCode = null;
 
-    var self = this;
-    browserifyFn(clientSideSourceCode).bundle().pipe(concat(function(js) {
-        clientSideCompiledCode = js.toString();
-    }));
+    var clientSideCompiledCodeWhenReady = new Promise(function (resolve) {
+        browserifyFn(clientSideSourceCode).bundle().pipe(concat(function(js) {
+            resolve(js.toString());
+        }));
+    });
 
     var wsServer = new WebSocketServer({ server: httpServer });
 
@@ -74,11 +74,11 @@ module.exports = function RemoteControlServer(constructorOrNamespace, httpServer
     });
 
     this.clientMiddleware = function (req, res) {
-        if (!clientSideCompiledCode) {
-            throw new Error('client not ready');
-        }
-
-        res.setHeader('Content-Type', 'application/javascript');
-        res.end(clientSideCompiledCode);
+        clientSideCompiledCodeWhenReady.then(function (clientSideCompiledCode) {
+            res.setHeader('Content-Type', 'application/javascript');
+            res.end(clientSideCompiledCode);
+        }, function () {
+            res.sendStatus(500);
+        });
     }
 };
