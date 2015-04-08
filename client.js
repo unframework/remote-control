@@ -12,7 +12,7 @@ module.exports = function (methodList) {
             var callCount = 0;
             var callMap = {};
 
-            bridgeSocket.onmessage = function (e) {
+            bridgeSocket.addEventListener('message', function (e) {
                 var data = JSON.parse(e.data);
                 var call = callMap[data[0]];
 
@@ -25,7 +25,7 @@ module.exports = function (methodList) {
                 } else {
                     call(data[2]);
                 }
-            };
+            }, false);
 
             function remoteCall(methodName, args) {
                 return new Promise(function(resolve, reject) {
@@ -58,9 +58,9 @@ module.exports = function (methodList) {
                 });
             }
 
-            bridgeSocket.onopen = function () {
+            bridgeSocket.addEventListener('open', function () {
                 resolve(remoteCall);
-            };
+            }, false);
         });
     }
 
