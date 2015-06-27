@@ -2,7 +2,7 @@
 
 Call functions on node server from browser web UI for quick prototyping and local deployments. Use promises to get return value.
 
-Server-side code:
+Server-side code example (`remoteMethods.js`):
 
 ```js
 module.exports = {
@@ -14,7 +14,7 @@ module.exports = {
 };
 ```
 
-Client-side code:
+Client-side code example (`index.html`):
 
 ```html
 <script src="remote.js"></script>
@@ -26,7 +26,7 @@ Client-side code:
 </script>
 ```
 
-Node server:
+Node server example (`index.js`):
 
 ```js
 var fs = require('fs');
