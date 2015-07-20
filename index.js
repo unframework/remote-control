@@ -1,6 +1,6 @@
 
-var browserifyFn = require('browserify-string');
-var concat = require('concat-stream');
+var stream = require('stream');
+var browserify = require('browserify');
 var Promise = require('bluebird');
 var WebSocketServer = require('ws').Server;
 
@@ -23,21 +23,40 @@ function createNamespaceFactory(namespace) {
     };
 }
 
+function whenClientSideCodeReady(exposeName, sourceCode, moduleName) {
+    var clientRC = new stream.Readable();
+    clientRC._read = function () {};
+    clientRC.push(sourceCode);
+    clientRC.push(null);
+
+    var b = browserify()
+        .exclude(exposeName)
+        .require(clientRC, { expose: exposeName, basedir: __dirname })
+        .add(moduleName);
+
+    return new Promise(function (resolve, reject) {
+        b.bundle(function (err, buffer) {
+            if(err) {
+                reject(err);
+            } else {
+                resolve(buffer);
+            }
+        });
+    });
+}
+
 // @todo instantiate methods per connection
-module.exports = function RemoteControlServer(constructorOrNamespace, httpServer) {
+module.exports = function RemoteControlServer(constructorOrNamespace, httpServer, clientModule) {
     // @todo filter out "private" methods - anything that starts with _?
     var methodList = Object.keys(typeof constructorOrNamespace === 'function' ? constructorOrNamespace.prototype : constructorOrNamespace);
     var createObject = typeof constructorOrNamespace === 'function'
         ? createConstructorFactory(constructorOrNamespace)
         : createNamespaceFactory(constructorOrNamespace);
 
-    var clientSideSourceCode = 'window.RemoteControl = (' + clientConstructorFn.toString() + ')(' + JSON.stringify(methodList) + ');';
-
-    var clientSideCompiledCodeWhenReady = new Promise(function (resolve) {
-        browserifyFn(clientSideSourceCode).bundle().pipe(concat(function(js) {
-            resolve(js.toString());
-        }));
-    });
+    var clientSideCompiledCodeWhenReady = whenClientSideCodeReady(
+        '__server', 'module.exports = (' + clientConstructorFn.toString() + ')(' + JSON.stringify(methodList) + ');',
+        clientModule ? clientModule : __dirname + '/globalServerStub.js'
+    );
 
     var wsServer = new WebSocketServer({ server: httpServer });
 
