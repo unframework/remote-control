@@ -22,8 +22,10 @@
     "url": "https://github.com/unframework/remote-control/issues"
   },
   "dependencies": {
+    "bluebird": "~2.9.14",
     "browserify": "~11.0.0",
-    "ws": "^0.7.1",
-    "bluebird": "~2.9.14"
+    "express": "^4.13.1",
+    "minimist": "^1.1.1",
+    "ws": "^0.7.1"
   }
 }
