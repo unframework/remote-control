@@ -65,7 +65,7 @@ module.exports = function (methodList) {
     }
 
     return function RemoteControl() {
-        var self = this;
+        var self = this || {};
         var socketPromise = createSocket();
 
         methodList.forEach(function (methodName) {
@@ -77,5 +77,7 @@ module.exports = function (methodList) {
                 });
             };
         });
+
+        return self; // support non-constructor invocation
     };
 };
