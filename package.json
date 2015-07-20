@@ -3,6 +3,9 @@
   "version": "0.3.1",
   "description": "Call functions on node server from browser web UI",
   "main": "index.js",
+  "bin": {
+    "remote-control": "run.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
