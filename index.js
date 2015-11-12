@@ -1,10 +1,13 @@
-
 var stream = require('stream');
 var browserify = require('browserify');
 var Promise = require('bluebird');
 var WebSocketServer = require('ws').Server;
+var express = require('express');
 
 var clientConstructorFn = require('./client.js');
+
+var DEFAULT_HOST = '0.0.0.0';
+var DEFAULT_PORT = 3000;
 
 function createConstructorFactory(constructor) {
     return function (args) {
@@ -45,8 +48,21 @@ function whenClientSideCodeReady(exposeName, sourceCode, moduleName) {
     });
 }
 
+function createServer(port, clientMiddleware) {
+    var app = express();
+
+    app.get('/', function(request, response) {
+        response.setHeader('Content-Type', 'text/html; charset=UTF-8');
+        response.end('<html><head><title>RemoteControl Runner</title></head><body><script src="index.js"></script></body></html>');
+    });
+
+    app.get('/index.js', clientMiddleware);
+
+    return app.listen(port || DEFAULT_PORT, DEFAULT_HOST);
+}
+
 // @todo instantiate methods per connection
-module.exports = function RemoteControlServer(constructorOrNamespace, httpServer, clientModule) {
+module.exports = function RemoteControlServer(constructorOrNamespace, clientModule, port) {
     // @todo filter out "private" methods - anything that starts with _?
     var methodList = Object.keys(typeof constructorOrNamespace === 'function' ? constructorOrNamespace.prototype : constructorOrNamespace);
     var createObject = typeof constructorOrNamespace === 'function'
@@ -57,6 +73,17 @@ module.exports = function RemoteControlServer(constructorOrNamespace, httpServer
         '__server', 'module.exports = (' + clientConstructorFn.toString() + ')(' + JSON.stringify(methodList) + ');',
         clientModule ? clientModule : __dirname + '/globalServerStub.js'
     );
+
+    var clientMiddleware = function (req, res) {
+        clientSideCompiledCodeWhenReady.then(function (clientSideCompiledCode) {
+            res.setHeader('Content-Type', 'application/javascript');
+            res.end(clientSideCompiledCode);
+        }, function () {
+            res.sendStatus(500);
+        });
+    };
+
+    var httpServer = createServer(port, clientMiddleware);
 
     var wsServer = new WebSocketServer({ server: httpServer });
 
@@ -91,13 +118,4 @@ module.exports = function RemoteControlServer(constructorOrNamespace, httpServer
             });
         });
     });
-
-    this.clientMiddleware = function (req, res) {
-        clientSideCompiledCodeWhenReady.then(function (clientSideCompiledCode) {
-            res.setHeader('Content-Type', 'application/javascript');
-            res.end(clientSideCompiledCode);
-        }, function () {
-            res.sendStatus(500);
-        });
-    }
 };
