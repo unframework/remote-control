@@ -1,6 +1,6 @@
 {
   "name": "remote-control",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Call functions on node server from browser web UI",
   "main": "index.js",
   "bin": {
