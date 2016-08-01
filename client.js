@@ -23,7 +23,12 @@ module.exports = function (methodList) {
                 if (data.length === 2) {
                     call(null, data[1]);
                 } else {
-                    call(data[2]);
+                    // reconstruct safe error data
+                    var error = new Error();
+                    error.name = data[2][0];
+                    error.message = data[2][1];
+
+                    call(error);
                 }
             }, false);
 

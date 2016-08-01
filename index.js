@@ -107,14 +107,16 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
             try {
                 result = Promise.resolve(method.apply(remoteObject, args));
             } catch (e) {
-                result = Promise.reject();
+                result = Promise.reject(e);
             }
 
             result.then(function (resultValue) {
                 socket.send(JSON.stringify([ callId, resultValue ]));
             }, function (error) {
                 console.error(error);
-                socket.send(JSON.stringify([ callId, null, true ]));
+
+                var safeErrorData = error ? [ error.name + '', error.message + '' ] : [];
+                socket.send(JSON.stringify([ callId, null, safeErrorData ]));
             });
         });
     });
