@@ -1,4 +1,5 @@
 var stream = require('stream');
+var EventEmitter = require('events').EventEmitter;
 var browserify = require('browserify');
 var Promise = require('bluebird');
 var WebSocketServer = require('ws').Server;
@@ -90,6 +91,34 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
     wsServer.on('connection', function (socket) {
         var remoteObject = createObject([]);
 
+        var emitterCount = 0;
+
+        function attachEmitter(emitter, eventCb) {
+            var emitterId = emitterCount;
+            emitterCount += 1;
+
+            // monkey-patch the emit function (seems like the only possible wildcard listener approach)
+            // @todo maybe allow for a "networkable emitter" abstraction leak instead in server code?
+            var originalEmit = emitter.emit;
+
+            emitter.emit = function () {
+                eventData = Array.prototype.slice.call(arguments);
+
+                // first, call local listeners
+                originalEmit.apply(emitter, eventData); // @todo this properly
+
+                // do the network thing
+                try {
+                    eventCb(eventData);
+                } catch(e) {
+                    // do nothing
+                    // @todo log?
+                }
+            };
+
+            return emitterId;
+        }
+
         socket.on('message', function (dataJson) {
             var data = null;
 
@@ -111,7 +140,15 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
             }
 
             result.then(function (resultValue) {
-                socket.send(JSON.stringify([ callId, resultValue ]));
+                if (resultValue instanceof EventEmitter) {
+                    var emitterId = attachEmitter(resultValue, function (eventData) {
+                        socket.send(JSON.stringify([ [ emitterId ], eventData ])); // @todo this properly?
+                    });
+
+                    socket.send(JSON.stringify([ callId, null, null, emitterId ]));
+                } else {
+                    socket.send(JSON.stringify([ callId, resultValue ]));
+                }
             }, function (error) {
                 console.error(error);
 

@@ -1,5 +1,6 @@
-
 module.exports = function (methodList) {
+    // imports inside the packaged function
+    var EventEmitter = require('events').EventEmitter;
     var Promise = require('bluebird');
 
     function createSocket() {
@@ -11,10 +12,41 @@ module.exports = function (methodList) {
 
             var callCount = 0;
             var callMap = {};
+            var emitterMap = Object.create(null);
+
+            function wrapEmitter(emitterId) {
+                if (emitterMap[emitterId]) {
+                    throw new Error('emitter ID already exists');
+                }
+
+                var emitter = new EventEmitter();
+
+                // @todo also on error
+                emitter.once('end', function () {
+                    delete emitterMap[emitterId];
+                });
+
+                emitterMap[emitterId] = emitter;
+
+                return emitter;
+            }
 
             bridgeSocket.addEventListener('message', function (e) {
                 var data = JSON.parse(e.data);
-                var call = callMap[data[0]];
+                var callId = data[0];
+
+                var call = typeof callId === 'number'
+                    ? callMap[callId]
+                    : function (err, eventData) {
+                        var emitterId = callId[0];
+                        var emitter = emitterMap[emitterId];
+
+                        if (!emitter) {
+                            return;
+                        }
+
+                        emitter.emit.apply(emitter, eventData);
+                    };
 
                 if (!call) {
                     return;
@@ -22,6 +54,8 @@ module.exports = function (methodList) {
 
                 if (data.length === 2) {
                     call(null, data[1]);
+                } else if (data.length === 4) {
+                    call(null, wrapEmitter(data[3]));
                 } else {
                     // reconstruct safe error data
                     var error = new Error();
