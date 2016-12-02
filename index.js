@@ -49,8 +49,12 @@ function whenClientSideCodeReady(exposeName, sourceCode, moduleName) {
     });
 }
 
-function createServer(port, clientMiddleware) {
+function createServer(port, clientMiddleware, otherMiddleware) {
     var app = express();
+
+    if (otherMiddleware) {
+        app.use(otherMiddleware);
+    }
 
     app.get('/', function(request, response) {
         response.setHeader('Content-Type', 'text/html; charset=UTF-8');
@@ -63,7 +67,7 @@ function createServer(port, clientMiddleware) {
 }
 
 // @todo instantiate methods per connection
-module.exports = function RemoteControlServer(constructorOrNamespace, clientModule, port) {
+module.exports = function RemoteControlServer(constructorOrNamespace, clientModule, port, otherMiddleware) {
     // @todo filter out "private" methods - anything that starts with _?
     var methodList = Object.keys(typeof constructorOrNamespace === 'function' ? constructorOrNamespace.prototype : constructorOrNamespace);
     var createObject = typeof constructorOrNamespace === 'function'
@@ -84,7 +88,7 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
         });
     };
 
-    var httpServer = createServer(port, clientMiddleware);
+    var httpServer = createServer(port, clientMiddleware, otherMiddleware);
 
     var wsServer = new WebSocketServer({ server: httpServer });
 
