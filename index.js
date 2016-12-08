@@ -101,8 +101,7 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
             var forwarder = new socket.Writable({ objectMode: true });
 
             forwarder._write = function (data, encoding, cb) {
-                // @todo think about format?
-                socket.send(JSON.stringify([ [ streamId ], data ]), function (err) {
+                socket.send(JSON.stringify([ [ '>', streamId ], data ]), function (err) {
                     // uncork for more data
                     cb(err);
                 });
@@ -110,8 +109,7 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
 
             // signal end once all data is piped out
             forwarder.on('finish', function () {
-                // @todo think about format?
-                socket.send(JSON.stringify([ [ streamId ], null ]));
+                socket.send(JSON.stringify([ [ '>', streamId ], null ]));
             });
 
             forwarder.id = streamCount;
@@ -146,7 +144,7 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
                     var forwarder = createForwarder();
                     resultValue.pipe(forwarder);
 
-                    socket.send(JSON.stringify([ callId, null, null, forwarder.id ]));
+                    socket.send(JSON.stringify([ callId, null, null, [ '>', forwarder.id ] ]));
                 } else {
                     socket.send(JSON.stringify([ callId, resultValue ]));
                 }

@@ -32,15 +32,26 @@ module.exports = function (methodList) {
                 return readableProxy;
             }
 
-            bridgeSocket.addEventListener('message', function (e) {
-                var data = JSON.parse(e.data);
-                var callId = data[0];
+            function processSpecialReturnValue(descriptor) {
+                var specialType = descriptor[0];
 
-                var call = typeof callId === 'number'
-                    ? callMap[callId]
-                    : function (err, eventData) {
+                if (specialType === '>') {
+                    var streamId = descriptor[1];
+
+                    return wrapRemoteReadable(streamId);
+                }
+
+                throw new Error('unrecognized special value');
+            }
+
+            function getSpecialResolver(descriptor) {
+                var specialType = descriptor[0];
+
+                if (specialType === '>') {
+                    var streamId = descriptor[1];
+
+                    return function (err, eventData) {
                         // @todo handle error
-                        var streamId = callId[0];
                         var readableProxy = remoteReadableMap[streamId];
 
                         if (!readableProxy) {
@@ -49,6 +60,16 @@ module.exports = function (methodList) {
 
                         readableProxy.write(eventData);
                     };
+                }
+            }
+
+            bridgeSocket.addEventListener('message', function (e) {
+                var data = JSON.parse(e.data);
+                var callId = data[0];
+
+                var call = typeof callId === 'number'
+                    ? callMap[callId]
+                    : getSpecialResolver(callId);
 
                 if (!call) {
                     return;
@@ -57,7 +78,7 @@ module.exports = function (methodList) {
                 if (data.length === 2) {
                     call(null, data[1]);
                 } else if (data.length === 4) {
-                    call(null, wrapRemoteReadable(data[3]));
+                    call(null, processSpecialReturnValue(data[3]));
                 } else {
                     // reconstruct safe error data
                     var error = new Error();
