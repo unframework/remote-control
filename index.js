@@ -10,6 +10,23 @@ var clientConstructorFn = require('./client.js');
 var DEFAULT_HOST = '0.0.0.0';
 var DEFAULT_PORT = 3000;
 
+function encodeResultValue(callId, value) {
+    return JSON.stringify([ callId, value ]);
+}
+
+function encodeResultError(callId, error) {
+    var safeErrorData = error ? [ error.name + '', error.message + '' ] : [];
+    return JSON.stringify([ callId, null, safeErrorData ]);
+}
+
+function encodeResultSpecial(callId, descriptor) {
+    return JSON.stringify([ callId, null, null, descriptor ]);
+}
+
+function getRemoteReadableDescriptor(forwarder) {
+    return [ '>', forwarder.id ];
+}
+
 function createConstructorFactory(constructor) {
     return function (args) {
         var ctr = constructor.bind.apply(constructor, args);
@@ -105,7 +122,10 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
             var forwarder = new stream.Writable({ objectMode: true });
 
             forwarder._write = function (data, encoding, cb) {
-                socket.send(JSON.stringify([ [ '>', streamId ], data ]), function (err) {
+                socket.send(encodeResultValue(
+                    getRemoteReadableDescriptor(forwarder),
+                    data
+                ), function (err) {
                     // uncork for more data
                     cb(err);
                 });
@@ -113,7 +133,10 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
 
             // signal end once all data is piped out
             forwarder.on('finish', function () {
-                socket.send(JSON.stringify([ [ '>', streamId ], null ]));
+                socket.send(encodeResultValue(
+                    getRemoteReadableDescriptor(forwarder),
+                    null
+                ));
             });
 
             forwarder.id = streamCount;
@@ -148,15 +171,14 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
                     var forwarder = createForwarder();
                     resultValue.pipe(forwarder);
 
-                    socket.send(JSON.stringify([ callId, null, null, [ '>', forwarder.id ] ]));
+                    socket.send(encodeResultSpecial(callId, getRemoteReadableDescriptor(forwarder)));
                 } else {
-                    socket.send(JSON.stringify([ callId, resultValue ]));
+                    socket.send(encodeResultValue(callId, resultValue));
                 }
             }, function (error) {
                 console.error(error);
 
-                var safeErrorData = error ? [ error.name + '', error.message + '' ] : [];
-                socket.send(JSON.stringify([ callId, null, safeErrorData ]));
+                socket.send(encodeResultError(callId, error));
             });
         });
     });
