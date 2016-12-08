@@ -1,6 +1,6 @@
 # remote-control
 
-Call functions on NodeJS server directly from client-side code in the browser UI for quick prototyping and local deployments. Use promises to get return value.
+Call functions on NodeJS server directly from client-side code in the browser UI for quick prototyping and local deployments. Use promises to get return value. Supports server push (by wrapping readable streams returned by server code).
 
 If you are quickly prototyping a new app with both in-browser and server-side components, the last thing you want to worry about is setting up Express routes, the main entry-point HTML file, encoding/decoding values, dealing with XHR... This module is designed to help get going without all the boilerplate, as just a simple live "tunnel" between the browser and server worlds.
 
@@ -48,6 +48,7 @@ The `remote-control` utility is a sandbox development server. It automatically [
 
 * document Express middleware mode
 * implement connection restart
-* implement support for returning EventEmitters (server push!)
+* document server push features
+* extend server push features? add time out as well
 * allow auto-reloading code
 * add code checksumming?
