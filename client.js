@@ -11,7 +11,8 @@ module.exports = function (methodList) {
             var bridgeSocket = new WebSocket((window.location + '').replace(/^http/, 'ws').replace(/#.*$/, ''))
 
             var callCount = 0;
-            var callMap = {};
+            var callResolverMap = Object.create(null);
+
             var remoteReadableMap = Object.create(null);
 
             function wrapRemoteReadable(streamId) {
@@ -68,7 +69,7 @@ module.exports = function (methodList) {
                 var callId = data[0];
 
                 var call = typeof callId === 'number'
-                    ? callMap[callId]
+                    ? callResolverMap[callId]
                     : getSpecialResolver(callId);
 
                 if (!call) {
@@ -98,7 +99,7 @@ module.exports = function (methodList) {
 
                     function cleanup() {
                         window.clearTimeout(timeoutId);
-                        delete callMap[callId];
+                        delete callResolverMap[callId];
                     };
 
                     timeoutId = window.setTimeout(function() {
@@ -106,7 +107,7 @@ module.exports = function (methodList) {
                         reject();
                     }, 5000);
 
-                    callMap[callId] = function (error) {
+                    callResolverMap[callId] = function (error) {
                         cleanup();
 
                         if (arguments.length === 2) {
