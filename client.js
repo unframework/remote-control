@@ -19,7 +19,7 @@ module.exports = function (methodList) {
                     throw new Error('stream ID already exists');
                 }
 
-                var readableProxy = new Readable();
+                var readableProxy = new Readable({ objectMode: true });
                 readableProxy._read = function () {}; // no-op
 
                 // @todo also on error
@@ -58,7 +58,7 @@ module.exports = function (methodList) {
                             return;
                         }
 
-                        readableProxy.write(eventData);
+                        readableProxy.push(eventData);
                     };
                 }
             }

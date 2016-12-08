@@ -98,7 +98,7 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
             streamCount += 1;
 
             // @todo add a time-out that cleans up? client concern anyway
-            var forwarder = new socket.Writable({ objectMode: true });
+            var forwarder = new stream.Writable({ objectMode: true });
 
             forwarder._write = function (data, encoding, cb) {
                 socket.send(JSON.stringify([ [ '>', streamId ], data ]), function (err) {
