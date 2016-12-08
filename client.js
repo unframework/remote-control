@@ -1,6 +1,6 @@
 module.exports = function (methodList) {
     // imports inside the packaged function
-    var EventEmitter = require('events').EventEmitter;
+    var Readable = require('stream').Readable;
     var Promise = require('bluebird');
 
     function createSocket() {
@@ -12,23 +12,24 @@ module.exports = function (methodList) {
 
             var callCount = 0;
             var callMap = {};
-            var emitterMap = Object.create(null);
+            var remoteReadableMap = Object.create(null);
 
-            function wrapEmitter(emitterId) {
-                if (emitterMap[emitterId]) {
-                    throw new Error('emitter ID already exists');
+            function wrapRemoteReadable(streamId) {
+                if (remoteReadableMap[streamId]) {
+                    throw new Error('stream ID already exists');
                 }
 
-                var emitter = new EventEmitter();
+                var readableProxy = new Readable();
+                readableProxy._read = function () {}; // no-op
 
                 // @todo also on error
-                emitter.once('end', function () {
-                    delete emitterMap[emitterId];
+                readableProxy.once('end', function () {
+                    delete remoteReadableMap[streamId];
                 });
 
-                emitterMap[emitterId] = emitter;
+                remoteReadableMap[streamId] = readableProxy;
 
-                return emitter;
+                return readableProxy;
             }
 
             bridgeSocket.addEventListener('message', function (e) {
@@ -38,14 +39,15 @@ module.exports = function (methodList) {
                 var call = typeof callId === 'number'
                     ? callMap[callId]
                     : function (err, eventData) {
-                        var emitterId = callId[0];
-                        var emitter = emitterMap[emitterId];
+                        // @todo handle error
+                        var streamId = callId[0];
+                        var readableProxy = remoteReadableMap[streamId];
 
-                        if (!emitter) {
+                        if (!readableProxy) {
                             return;
                         }
 
-                        emitter.emit.apply(emitter, eventData);
+                        readableProxy.write(eventData);
                     };
 
                 if (!call) {
@@ -55,7 +57,7 @@ module.exports = function (methodList) {
                 if (data.length === 2) {
                     call(null, data[1]);
                 } else if (data.length === 4) {
-                    call(null, wrapEmitter(data[3]));
+                    call(null, wrapRemoteReadable(data[3]));
                 } else {
                     // reconstruct safe error data
                     var error = new Error();

@@ -1,5 +1,5 @@
 var stream = require('stream');
-var EventEmitter = require('events').EventEmitter;
+var isStream = require('is-stream');
 var browserify = require('browserify');
 var Promise = require('bluebird');
 var WebSocketServer = require('ws').Server;
@@ -91,32 +91,32 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
     wsServer.on('connection', function (socket) {
         var remoteObject = createObject([]);
 
-        var emitterCount = 0;
+        var streamCount = 0;
 
-        function attachEmitter(emitter, eventCb) {
-            var emitterId = emitterCount;
-            emitterCount += 1;
+        function createForwarder() {
+            var streamId = streamCount;
+            streamCount += 1;
 
-            // monkey-patch the emit function (seems like the only possible wildcard listener approach)
-            // @todo maybe allow for a "networkable emitter" abstraction leak instead in server code?
-            var originalEmit = emitter.emit;
+            // @todo add a time-out that cleans up? client concern anyway
+            var forwarder = new socket.Writable({ objectMode: true });
 
-            emitter.emit = function () {
-                eventData = Array.prototype.slice.call(arguments);
-
-                // first, call local listeners
-                originalEmit.apply(emitter, eventData); // @todo this properly
-
-                // do the network thing
-                try {
-                    eventCb(eventData);
-                } catch(e) {
-                    // do nothing
-                    // @todo log?
-                }
+            forwarder._write = function (data, encoding, cb) {
+                // @todo think about format?
+                socket.send(JSON.stringify([ [ streamId ], data ]), function (err) {
+                    // uncork for more data
+                    cb(err);
+                });
             };
 
-            return emitterId;
+            // signal end once all data is piped out
+            forwarder.on('finish', function () {
+                // @todo think about format?
+                socket.send(JSON.stringify([ [ streamId ], null ]));
+            });
+
+            forwarder.id = streamCount;
+
+            return forwarder;
         }
 
         socket.on('message', function (dataJson) {
@@ -140,12 +140,13 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
             }
 
             result.then(function (resultValue) {
-                if (resultValue instanceof EventEmitter) {
-                    var emitterId = attachEmitter(resultValue, function (eventData) {
-                        socket.send(JSON.stringify([ [ emitterId ], eventData ])); // @todo this properly?
-                    });
+                if (isStream.readable(resultValue)) {
+                    // set up forwarder and return its ID
+                    // @todo forward errors
+                    var forwarder = createForwarder();
+                    resultValue.pipe(forwarder);
 
-                    socket.send(JSON.stringify([ callId, null, null, emitterId ]));
+                    socket.send(JSON.stringify([ callId, null, null, forwarder.id ]));
                 } else {
                     socket.send(JSON.stringify([ callId, resultValue ]));
                 }
