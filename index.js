@@ -1,4 +1,5 @@
 var stream = require('stream');
+var isStream = require('is-stream');
 var browserify = require('browserify');
 var Promise = require('bluebird');
 var WebSocketServer = require('ws').Server;
@@ -90,6 +91,32 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
     wsServer.on('connection', function (socket) {
         var remoteObject = createObject([]);
 
+        var streamCount = 0;
+
+        function createForwarder() {
+            var streamId = streamCount;
+            streamCount += 1;
+
+            // @todo add a time-out that cleans up? client concern anyway
+            var forwarder = new stream.Writable({ objectMode: true });
+
+            forwarder._write = function (data, encoding, cb) {
+                socket.send(JSON.stringify([ [ '>', streamId ], data ]), function (err) {
+                    // uncork for more data
+                    cb(err);
+                });
+            };
+
+            // signal end once all data is piped out
+            forwarder.on('finish', function () {
+                socket.send(JSON.stringify([ [ '>', streamId ], null ]));
+            });
+
+            forwarder.id = streamCount;
+
+            return forwarder;
+        }
+
         socket.on('message', function (dataJson) {
             var data = null;
 
@@ -111,7 +138,16 @@ module.exports = function RemoteControlServer(constructorOrNamespace, clientModu
             }
 
             result.then(function (resultValue) {
-                socket.send(JSON.stringify([ callId, resultValue ]));
+                if (isStream.readable(resultValue)) {
+                    // set up forwarder and return its ID
+                    // @todo forward errors
+                    var forwarder = createForwarder();
+                    resultValue.pipe(forwarder);
+
+                    socket.send(JSON.stringify([ callId, null, null, [ '>', forwarder.id ] ]));
+                } else {
+                    socket.send(JSON.stringify([ callId, resultValue ]));
+                }
             }, function (error) {
                 console.error(error);
 

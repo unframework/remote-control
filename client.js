@@ -1,5 +1,6 @@
-
 module.exports = function (methodList) {
+    // imports inside the packaged function
+    var Readable = require('stream').Readable;
     var Promise = require('bluebird');
 
     function createSocket() {
@@ -11,10 +12,64 @@ module.exports = function (methodList) {
 
             var callCount = 0;
             var callMap = {};
+            var remoteReadableMap = Object.create(null);
+
+            function wrapRemoteReadable(streamId) {
+                if (remoteReadableMap[streamId]) {
+                    throw new Error('stream ID already exists');
+                }
+
+                var readableProxy = new Readable({ objectMode: true });
+                readableProxy._read = function () {}; // no-op
+
+                // @todo also on error
+                readableProxy.once('end', function () {
+                    delete remoteReadableMap[streamId];
+                });
+
+                remoteReadableMap[streamId] = readableProxy;
+
+                return readableProxy;
+            }
+
+            function processSpecialReturnValue(descriptor) {
+                var specialType = descriptor[0];
+
+                if (specialType === '>') {
+                    var streamId = descriptor[1];
+
+                    return wrapRemoteReadable(streamId);
+                }
+
+                throw new Error('unrecognized special value');
+            }
+
+            function getSpecialResolver(descriptor) {
+                var specialType = descriptor[0];
+
+                if (specialType === '>') {
+                    var streamId = descriptor[1];
+
+                    return function (err, eventData) {
+                        // @todo handle error
+                        var readableProxy = remoteReadableMap[streamId];
+
+                        if (!readableProxy) {
+                            return;
+                        }
+
+                        readableProxy.push(eventData);
+                    };
+                }
+            }
 
             bridgeSocket.addEventListener('message', function (e) {
                 var data = JSON.parse(e.data);
-                var call = callMap[data[0]];
+                var callId = data[0];
+
+                var call = typeof callId === 'number'
+                    ? callMap[callId]
+                    : getSpecialResolver(callId);
 
                 if (!call) {
                     return;
@@ -22,6 +77,8 @@ module.exports = function (methodList) {
 
                 if (data.length === 2) {
                     call(null, data[1]);
+                } else if (data.length === 4) {
+                    call(null, processSpecialReturnValue(data[3]));
                 } else {
                     // reconstruct safe error data
                     var error = new Error();
